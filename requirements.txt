@@ -10,5 +10,4 @@ ipyvuetify
 voila-vuetify
 dash
 jupyter-dash
-plotly
 dash-html-components
