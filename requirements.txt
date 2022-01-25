@@ -5,9 +5,7 @@ textblob
 nltk
 plotly-express
 pytest
-voila
-ipyvuetify
-voila-vuetify
 dash
 jupyter-dash
 dash-html-components
+dash-core-components
