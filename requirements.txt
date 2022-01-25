@@ -3,7 +3,7 @@ requests
 pandas
 textblob
 nltk
-plotly-express
+plotly
 pytest
 dash
 jupyter-dash
