@@ -9,3 +9,4 @@ dash
 jupyter-dash
 dash-html-components
 dash-core-components
+gunicorn
