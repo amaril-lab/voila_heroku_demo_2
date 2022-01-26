@@ -8,163 +8,149 @@ from dash import dcc
 import dash
 import dash_core_components as dcc
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-df = pd.read_csv('https://plotly.github.io/datasets/country_indicators.csv')
-available_indicators = df['Indicator Name'].unique()
-#df.head()
+from dash.dependencies import Input, Output
+import plotly.express as px
+import numpy as np
+
+
+df0 = pd.read_csv('cleandf.spatial_data.csv')
+print (df0.columns)
+df0= df0[['Dose_number', 'Count', 'city_desc','Religion_Desc', 'arab_rate',
+     'ortodox_rate', 'relevant_desk', 'perc', 'count_nonvac_young', 'count_age_old', 'diff', 'skewfirst',
+       'skewsecond', 'kurfirst', 'kursecond', 'meanfirst', 'stdfirst',
+       'meanthird', 'stdthird', 'meanlast', 'stdlast', 'meanrisk1', 'stdrisk1',
+       'meanrisk3', 'stdrisk2', 'meanimmunity', 'stdimmunity', 'hosp_total',
+       'recovered_total', 'death_total', 'positive_total', 'recavored_norm', 'hosp_norm', 'positive_norm',
+       'death_norm', 'anomaly']]
+
+
+df = pd.read_csv('AgglomerativeClustering_n10_knn_011220_081221.csv')
+del df["id_num"]
+del df["city_from"]
+del df["connected_component"]
+del df["an"]
+df = df.merge(df0, left_on='city_name', right_on='city_desc')
+del df["city_desc"]
+df.head()
+df["perc"] = df["perc"]*100 
+df["hosp_norm"] = df["hosp_norm"]*100 
+df["positive_norm"] = df["positive_norm"]*100 
+df["death_norm"] = df["death_norm"]*100 
+df["meanimmunity"] = df["meanimmunity"]*100 
+df["stdimmunity"] = df["stdimmunity"]*100 
+df["diff"] = df["diff"]*100 
+df["count_age_old"] = df["count_age_old"]*100 
+df["count_nonvac_young"] = df["count_nonvac_young"]*100 
+df['meanimmunity'] =  df['meanimmunity'].fillna(0)
+df['size'] =  0.1
+df["clusters"] = df["clusters"].astype(str)
+
+df1 = pd.melt(df, id_vars=['city_name',"city_longitude","city_latitude", "size", "relevant_desk"], value_vars=["clusters",'perc', 'count_nonvac_young',
+       'count_age_old', 'diff','meanfirst', 'meanthird', 'meanlast', 'meanrisk1', 'meanrisk3'
+        ,"meanimmunity",'stdimmunity', 'hosp_total', 'death_total', 'positive_total',  'hosp_norm',
+       'positive_norm', 'death_norm'])
+
+
+
+#buffer = io.StringIO()
+#html_bytes = buffer.getvalue().encode()
+#encoded = b64encode(html_bytes).decode()
+
+cities = df1.city_name.unique()
+#opclass = df1.clusters.unique()
+available_indicators = df1['variable'].unique()
+lst_col0 = ['meanfirst', 'meanthird', 'meanlast', 'meanrisk1', 'meanrisk3','hosp_total', 'death_total', 'positive_total']
+lst_col =['perc', 'count_nonvac_young','count_age_old', 'diff', 'meanimmunity', 'stdimmunity',  'hosp_norm','positive_norm', 'death_norm']
+
+
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+app.config.suppress_callback_exceptions = True
+
+#du.configure_upload(app, r"C:\Users\Haim\Desktop\covid")
 
 # Create server variable with Flask server object for use with gunicorn
 server = app.server
-
 app.layout = html.Div([
+    
     html.Div([
-
-        html.Div([
-            dcc.Dropdown(
-                id='crossfilter-xaxis-column',
-                options=[{'label': i, 'value': i} for i in available_indicators],
-                value='Fertility rate, total (births per woman)'
-            ),
-            dcc.RadioItems(
-                id='crossfilter-xaxis-type',
-                options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
-                value='Linear',
-                labelStyle={'display': 'inline-block'}
-            )
-        ],
-        style={'width': '49%', 'display': 'inline-block'}),
-
-        html.Div([
-            dcc.Dropdown(
-                id='crossfilter-yaxis-column',
-                options=[{'label': i, 'value': i} for i in available_indicators],
-                value='Life expectancy at birth, total (years)'
-            ),
-            dcc.RadioItems(
-                id='crossfilter-yaxis-type',
-                options=[{'label': i, 'value': i} for i in ['Linear', 'Log']],
-                value='Linear',
-                labelStyle={'display': 'inline-block'}
-            )
-        ], style={'width': '49%', 'float': 'right', 'display': 'inline-block'})
-    ], style={
-        'borderBottom': 'thin lightgrey solid',
-        'backgroundColor': 'rgb(250, 250, 250)',
-        'padding': '10px 5px'
-    }),
-
+        dcc.Dropdown(
+        id="dropdown_indicators",
+        options=[{'label': i, 'value': i} for i in available_indicators],
+        value=available_indicators[0],
+        clearable=False,
+        style=dict(
+                    width='70%',
+                    verticalAlign="middle")
+        ), 
+        
+        dcc.Graph(id="MapPlot"),
+        #html.A(
+        #html.Button("Download HTML"), 
+        #id="download",
+        #href="data:text/html;base64," +encoded,
+        #download="plotly_graph.html"
+    #)
+    ], className="one-third column",
+    style={'width': '50%' ,'display': 'inline-block','padding': '0 20'}
+    ),  
+    
     html.Div([
-        dcc.Graph(
-            id='crossfilter-indicator-scatter',
-            hoverData={'points': [{'customdata': 'Japan'}]}
-        )
-    ], style={'width': '49%', 'display': 'inline-block', 'padding': '0 20'}),
-    html.Div([
-        dcc.Graph(id='x-time-series'),
-        dcc.Graph(id='y-time-series'),
-    ], style={'display': 'inline-block', 'width': '49%'}),
-
-    html.Div(dcc.Slider(
-        id='crossfilter-year--slider',
-        min=df['Year'].min(),
-        max=df['Year'].max(),
-        value=df['Year'].max(),
-        marks={str(year): str(year) for year in df['Year'].unique()},
-        step=None
-    ), style={'width': '49%', 'padding': '0px 20px 20px 20px'})
-])
+        dcc.Dropdown(
+        id="dropdown_city",
+        options=[{"label": x, "value": x} for x in cities],
+        value=cities[0],
+        clearable=False,
+        ),
+        dcc.Graph(id="x-bar-chart"),
+        dcc.Graph(id="y-bar-chart"),
+        #      dcc.Graph(id="tbl", )
+    
+    ],
+    className="one-third column",
+    style={'width': '40%', 'display': 'inline-block' }
+    )
+    
+    ])
 
 
 @app.callback(
-    dash.dependencies.Output('crossfilter-indicator-scatter', 'figure'),
-    [dash.dependencies.Input('crossfilter-xaxis-column', 'value'),
-     dash.dependencies.Input('crossfilter-yaxis-column', 'value'),
-     dash.dependencies.Input('crossfilter-xaxis-type', 'value'),
-     dash.dependencies.Input('crossfilter-yaxis-type', 'value'),
-     dash.dependencies.Input('crossfilter-year--slider', 'value')])
-def update_graph(xaxis_column_name, yaxis_column_name,
-                 xaxis_type, yaxis_type,
-                 year_value):
-    dff = df[df['Year'] == year_value]
-
-    return {
-        'data': [dict(
-            x=dff[dff['Indicator Name'] == xaxis_column_name]['Value'],
-            y=dff[dff['Indicator Name'] == yaxis_column_name]['Value'],
-            text=dff[dff['Indicator Name'] == yaxis_column_name]['Country Name'],
-            customdata=dff[dff['Indicator Name'] == yaxis_column_name]['Country Name'],
-            mode='markers',
-            marker={
-                'size': 25,
-                'opacity': 0.7,
-                'color': 'orange',
-                'line': {'width': 2, 'color': 'purple'}
-            }
-        )],
-        'layout': dict(
-            xaxis={
-                'title': xaxis_column_name,
-                'type': 'linear' if xaxis_type == 'Linear' else 'log'
-            },
-            yaxis={
-                'title': yaxis_column_name,
-                'type': 'linear' if yaxis_type == 'Linear' else 'log'
-            },
-            margin={'l': 40, 'b': 30, 't': 10, 'r': 0},
-            height=450,
-            hovermode='closest'
-        )
-    }
-
-
-def create_time_series(dff, axis_type, title):
-    return {
-        'data': [dict(
-            x=dff['Year'],
-            y=dff['Value'],
-            mode='lines+markers'
-        )],
-        'layout': {
-            'height': 225,
-            'margin': {'l': 20, 'b': 30, 'r': 10, 't': 10},
-            'annotations': [{
-                'x': 0, 'y': 0.85, 'xanchor': 'left', 'yanchor': 'bottom',
-                'xref': 'paper', 'yref': 'paper', 'showarrow': False,
-                'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                'text': title
-            }],
-            'yaxis': {'type': 'linear' if axis_type == 'Linear' else 'log'},
-            'xaxis': {'showgrid': False}
-        }
-    }
-
+    Output("MapPlot", "figure"),
+    [Input("dropdown_indicators", "value")])
+def update_scatter_mapbox(V):
+    mask = df1[ (df1["variable"] == V)]
+    if V != "clusters":
+        mask["value"] = mask["value"].astype(float)  
+    fig = px.scatter_mapbox(mask, lat="city_latitude", lon="city_longitude",
+            color="value",zoom=5, text="city_name",mapbox_style="open-street-map")
+    #fig.write_html(buffer)
+    fig.update_layout(showlegend=False,width=500,height=700)  
+    return fig
 
 @app.callback(
-    dash.dependencies.Output('x-time-series', 'figure'),
-    [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
-     dash.dependencies.Input('crossfilter-xaxis-column', 'value'),
-     dash.dependencies.Input('crossfilter-xaxis-type', 'value')])
-def update_y_timeseries(hoverData, xaxis_column_name, axis_type):
-    country_name = hoverData['points'][0]['customdata']
-    dff = df[df['Country Name'] == country_name]
-    dff = dff[dff['Indicator Name'] == xaxis_column_name]
-    title = '<b>{}</b><br>{}'.format(country_name, xaxis_column_name)
-    return create_time_series(dff, axis_type, title)
-
-
+    Output("x-bar-chart", "figure"), 
+    [Input("dropdown_city", "value")])
+def update_bar_chart(city):
+    mask = df1[ (df1["city_name"] == city) & (df1["variable"].isin(lst_col))]
+    
+    fig1 = px.bar(mask, x="variable", y="value", color="city_name")
+    fig1.update_layout(showlegend=False,width=500,height=300)
+    
+    return fig1
 @app.callback(
-    dash.dependencies.Output('y-time-series', 'figure'),
-    [dash.dependencies.Input('crossfilter-indicator-scatter', 'hoverData'),
-     dash.dependencies.Input('crossfilter-yaxis-column', 'value'),
-     dash.dependencies.Input('crossfilter-yaxis-type', 'value')])
-def update_x_timeseries(hoverData, yaxis_column_name, axis_type):
-    dff = df[df['Country Name'] == hoverData['points'][0]['customdata']]
-    dff = dff[dff['Indicator Name'] == yaxis_column_name]
-    return create_time_series(dff, axis_type, yaxis_column_name)
+    Output("y-bar-chart", "figure"), 
+    [Input("dropdown_city", "value")])
+def update_bar_chart(city):
+    mask = df1[ (df1["city_name"] == city) & (df1["variable"].isin(lst_col0))]
+    
+    fig2 = px.bar(mask, x="variable", y="value", color="city_name")
+    fig2.update_layout(showlegend=False,width=500,height=300)
+    
+    return fig2
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
+
