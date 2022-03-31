@@ -12,55 +12,27 @@ from dash.dependencies import Input, Output
 import plotly.express as px
 import numpy as np
 
+sum_all=  pd.read_excel('df_hosp_waste.xlsx')
+del sum_all["Unnamed: 0"]
 
-df0 = pd.read_csv('cleandf.spatial_data.csv')
-print (df0.columns)
-df0= df0[['Dose_number', 'Count', 'city_desc','Religion_Desc', 'arab_rate',
-     'ortodox_rate', 'relevant_desk', 'perc', 'count_nonvac_young', 'count_age_old', 'diff', 'skewfirst',
-       'skewsecond', 'kurfirst', 'kursecond', 'meanfirst', 'stdfirst',
-       'meanthird', 'stdthird', 'meanlast', 'stdlast', 'meanrisk1', 'stdrisk1',
-       'meanrisk3', 'stdrisk2', 'meanimmunity', 'stdimmunity', 'hosp_total',
-       'recovered_total', 'death_total', 'positive_total', 'recavored_norm', 'hosp_norm', 'positive_norm',
-       'death_norm', 'anomaly']]
+sum_all = sum_all.rename(columns={"result": "raw wastewater epidemiology"})
+cities = sum_all.LocationName.unique()
+available_indicators =sum_all.columns[2:6]
+df_name = (sum_all.groupby(['LocationName'])["time"].count().reset_index()).sort_values(by= "time", ascending = False)
 
+#df_name["LocationName"] = [ i[::-1] for i in list(df_name["LocationName"])]
+df_name.rename(columns={'time':'Number of observations'}, inplace=True)
+bar_fig  = px.bar(df_name.sort_values(by=['Number of observations']), x="LocationName", y=["Number of observations"], 
+                  title="Number of observations per city",template = 'plotly_dark')
 
-df = pd.read_csv('AgglomerativeClustering_n10_knn_011220_081221.csv')
-del df["id_num"]
-del df["city_from"]
-del df["connected_component"]
-del df["an"]
-df = df.merge(df0, left_on='city_name', right_on='city_desc')
-del df["city_desc"]
-df.head()
-df["perc"] = df["perc"]*100 
-df["hosp_norm"] = df["hosp_norm"]*100 
-df["positive_norm"] = df["positive_norm"]*100 
-df["death_norm"] = df["death_norm"]*100 
-df["meanimmunity"] = df["meanimmunity"]*100 
-df["stdimmunity"] = df["stdimmunity"]*100 
-df["diff"] = df["diff"]*100 
-df["count_age_old"] = df["count_age_old"]*100 
-df["count_nonvac_young"] = df["count_nonvac_young"]*100 
-df['meanimmunity'] =  df['meanimmunity'].fillna(0)
-df['size'] =  0.1
-df["clusters"] = df["clusters"].astype(str)
-
-df1 = pd.melt(df, id_vars=['city_name',"city_longitude","city_latitude", "size", "relevant_desk"], value_vars=["clusters",'perc', 'count_nonvac_young',
-       'count_age_old', 'diff','meanfirst', 'meanthird', 'meanlast', 'meanrisk1', 'meanrisk3'
-        ,"meanimmunity",'stdimmunity', 'hosp_total', 'death_total', 'positive_total',  'hosp_norm',
-       'positive_norm', 'death_norm'])
+bar_fig.update_layout(showlegend=False)
+fig_map = px.scatter_mapbox(sum_all, lat="city_latitude", lon="city_longitude",
+            color = "hosp_cum", size = "raw wastewater epidemiology",
+            size_max=40, zoom=6,mapbox_style="open-street-map",animation_frame = 'time', template = "plotly_dark",
+            title = 'COVID19 in wastewater over time <br><sup>Size represents the amount of virus, color represents the number of verified</sup> ', )
+fig_map = fig_map.update_layout(transition = {'duration': 10},plot_bgcolor='#000000',showlegend=False,width=700,height=700)
 
 
-
-#buffer = io.StringIO()
-#html_bytes = buffer.getvalue().encode()
-#encoded = b64encode(html_bytes).decode()
-
-cities = df1.city_name.unique()
-#opclass = df1.clusters.unique()
-available_indicators = df1['variable'].unique()
-lst_col0 = ['meanfirst', 'meanthird', 'meanlast', 'meanrisk1', 'meanrisk3','hosp_total', 'death_total', 'positive_total']
-lst_col =['perc', 'count_nonvac_young','count_age_old', 'diff', 'meanimmunity', 'stdimmunity',  'hosp_norm','positive_norm', 'death_norm']
 
 
 
@@ -73,82 +45,116 @@ app.config.suppress_callback_exceptions = True
 
 # Create server variable with Flask server object for use with gunicorn
 server = app.server
-app.layout = html.Div([
+
+      
+colors = {'background': 'black','text': '#FFD700'}
+#server = app.server
+app.layout =html.Div(style={'backgroundColor': colors['background']},
+    children=[html.Div(style={'backgroundColor': colors['background']},
+            children=[
+                dcc.Graph(figure = bar_fig),
+            ],className='row'),
+
+              
+html.Div(style={'backgroundColor': colors['background']},                 
+                children=[
+                html.Div('Select the variables for the X-axis and the Y-axis', style={'color': '#FFD700', 'fontSize': 14}),
+                html.Div('X-axis=', style={'color': '#FFD700', 'fontSize': 14}),
+               
+                dcc.Dropdown(
+                id='crossfilter-xaxis-column',
+                options=[{'label': i, 'value': i} for i in available_indicators],
+                value='raw wastewater epidemiology',
+                style=dict(width='40%',display= 'inline-block'),
+
+                    
+            ),]),
+              
+html.Div(style={'backgroundColor': colors['background']},                 
+        children=[            
+            html.Div('Y-axis=', style={'color': '#FFD700', 'fontSize': 14}),
     
-    html.Div([
-        dcc.Dropdown(
-        id="dropdown_indicators",
-        options=[{'label': i, 'value': i} for i in available_indicators],
-        value=available_indicators[0],
-        clearable=False,
-        style=dict(
-                    width='70%',
-                    verticalAlign="middle")
-        ), 
-        
-        dcc.Graph(id="MapPlot"),
-        #html.A(
-        #html.Button("Download HTML"), 
-        #id="download",
-        #href="data:text/html;base64," +encoded,
-        #download="plotly_graph.html"
-    #)
-    ], className="one-third column",
-    style={'width': '50%' ,'display': 'inline-block','padding': '0 20'}
-    ),  
-    
-    html.Div([
-        dcc.Dropdown(
-        id="dropdown_city",
-        options=[{"label": x, "value": x} for x in cities],
-        value=cities[0],
-        clearable=False,
-        ),
-        dcc.Graph(id="x-bar-chart"),
-        dcc.Graph(id="y-bar-chart"),
-        #      dcc.Graph(id="tbl", )
-    
-    ],
-    className="one-third column",
-    style={'width': '40%', 'display': 'inline-block' }
-    )
-    
-    ])
+            dcc.Dropdown(
+                id='crossfilter-yaxis-column',
+                options=[{'label': i, 'value': i} for i in available_indicators],
+                value='infected',
+                style=dict(width='40%', display= 'inline-block')
+            )]),
+              
+html.Div(style={'backgroundColor': colors['background']}, 
+          children=[
+              html.Div('Pick one of the cities dropdown below.', style={'color': '#FFD700', 'fontSize': 14}),
+         
+                dcc.Dropdown(id="dropdown_city",
+                             options=[{"label": x, "value": x} for x in cities],
+                             value=cities[0],
+                             clearable=False,
+                             style=dict(width='50%')
+                            ),
+            
+                dcc.Graph(id="line-plot",
+                         animate=True,className='row'),
+                
+                
+
+            ]),
+html.Div(style={'backgroundColor': colors['background']},
+         children=[    
+                dcc.Graph(figure = fig_map,className='six columns'),
+                dcc.Graph(id="scatter-plot",className='six columns'),
+                
+         ]),  
+              
+    ]
+)
+
 
 
 @app.callback(
-    Output("MapPlot", "figure"),
-    [Input("dropdown_indicators", "value")])
-def update_scatter_mapbox(V):
-    mask = df1[ (df1["variable"] == V)]
-    if V != "clusters":
-        mask["value"] = mask["value"].astype(float)  
-    fig = px.scatter_mapbox(mask, lat="city_latitude", lon="city_longitude",
-            color="value",zoom=5, text="city_name",mapbox_style="open-street-map")
+    Output("line-plot", "figure"),
+    [Input("dropdown_city", "value")],
+    Input('crossfilter-xaxis-column', 'value'),
+    Input('crossfilter-yaxis-column', 'value')
+     )
+def update_line(V,xaxis_column_name, yaxis_column_name):
+    mask = sum_all[ (sum_all["LocationName"] == V)]
+    mask["raw wastewater epidemiology"] = mask["raw wastewater epidemiology"].astype(float)
+    mask = pd.melt(mask[["raw wastewater epidemiology","hosp", "hosp_cum", "infected", "time"]])
+    fig = px.line(x=mask[mask['variable'] == "time"]["value"], y=[mask[mask['variable'] == xaxis_column_name]['value'], mask[mask['variable'] == yaxis_column_name]["value"]] ,
+              template = 'plotly_dark',title ="Relationship between wastewater and infected cases") 
+    
+    newnames={'wide_variable_0':xaxis_column_name , 'wide_variable_1':yaxis_column_name}
+    
     #fig.write_html(buffer)
-    fig.update_layout(showlegend=False,width=500,height=700)  
+    fig.update_layout(showlegend=False,width=1200,height=600)
+    
+
     return fig
 
+
+
+
+
 @app.callback(
-    Output("x-bar-chart", "figure"), 
-    [Input("dropdown_city", "value")])
-def update_bar_chart(city):
-    mask = df1[ (df1["city_name"] == city) & (df1["variable"].isin(lst_col))]
+    Output("scatter-plot", "figure"),
+    [Input("dropdown_city", "value")],
+    Input('crossfilter-xaxis-column', 'value'),
+     Input('crossfilter-yaxis-column', 'value')
+     )
     
-    fig1 = px.bar(mask, x="variable", y="value", color="city_name")
-    fig1.update_layout(showlegend=False,width=500,height=300)
+def update_scatter(V,xaxis_column_name, yaxis_column_name):
+    mask = sum_all[ (sum_all["LocationName"] == V)]
+    mask["raw wastewater epidemiology"] = mask["raw wastewater epidemiology"].astype(float)
+    mask = pd.melt(mask[["raw wastewater epidemiology","hosp", "hosp_cum", "infected"]])
     
+    
+    fig1 = px.scatter(mask ,x=mask[mask['variable'] == xaxis_column_name]['value'], y =mask[mask['variable'] == yaxis_column_name]['value'] ,template = 'plotly_dark'  ,title = "wastewater vs infected cases for the selected city")
+    fig1.update_layout(showlegend=False,width=600,height=700)  
+    fig1.update_xaxes(title=xaxis_column_name)
+    fig1.update_yaxes(title=yaxis_column_name)
+
+                                           
     return fig1
-@app.callback(
-    Output("y-bar-chart", "figure"), 
-    [Input("dropdown_city", "value")])
-def update_bar_chart(city):
-    mask = df1[ (df1["city_name"] == city) & (df1["variable"].isin(lst_col0))]
-    
-    fig2 = px.bar(mask, x="variable", y="value", color="city_name")
-    fig2.update_layout(showlegend=False,width=500,height=300)
-    
-    return fig2
 
 
 if __name__ == '__main__':
